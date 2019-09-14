@@ -1,5 +1,5 @@
 class VarSelection:
-    """ The variable selection class contains a set of methods to support variable selection in classification / regression modeling """
+    """ The variable selection class contains a set of methods to support variable selection in classification modeling """
     
     import pandas as pd
     from sklearn.ensemble import RandomForestClassifier
@@ -27,15 +27,47 @@ class VarSelection:
         self.k_features = k_features
         self.random_state = random_state
         
+    def prep_cat_vars(self):
+    
+    """ Method for preparing a dataframe that has categorical variables (creates dummies)
         
+    Args:
+    df (Dataframe)
+    
+    Attributes:
+    df:  Pandas dataframe containing the target and feature variables
+       
+    Returns:
+    Pandas Dataframe with categorical variables one hot encoded
+    """
+    
+    cat_features = self.df.loc[:, self.df.dtypes == object]
+
+    if not cat_features.empty:
+        cat_features_transform = pd.get_dummies(cat_features)
+
+        # Append back the numeric variables to get an encoded dataframe
+        numeric_features = self.df._get_numeric_data()
+
+        df_encoded = pd.concat([cat_features_transform, numeric_features], axis = 1)
+    
+        return df_encoded
+    
+    else:
+        return None
+    
     def squared_corr(self):
-        """ Method for calculating the top X variables with the highest squared correlation with the target variable
-        
+            """ Method for calculating the top X variables with the highest squared correlation with the target variable
+            
         Args:
-        None
-        
+        df (Dataframe)
+        target_var (String)
+        k_features (Integer)
+    
         Attributes:
-        None
+        df:  Pandas dataframe containing the target and feature variables
+        target_var:  The target variable
+        k_features:  The number of features to return
         
         Returns:
         Pandas Dataframe with the top X variables related to the target by squared correlation
@@ -57,50 +89,88 @@ class VarSelection:
     
     def rf_imp_rank(self, RandomForestClassifier):
   
-    """ Method for calculating the top X variables with the highest rf importance with the target variable
+        """ Method for calculating the top X variables with the highest rf importance with the target variable
         
-    Args:
-    df (Dataframe)
-    target_var (String)
-    k_features (Integer)
-    RandomForestClassifier (Class)
+        Args:
+        df (Dataframe)
+        target_var (String)
+        k_features (Integer)
+        RandomForestClassifier (Class)
     
-    Attributes:
-    df:  Pandas dataframe containing the target and feature variables
-    target_var:  The target variable
-    k_features:  The number of features to return
-    RandomForestClassifier:  A Random Forest classifier using sci-kit learn RandomForestClassifier
+        Attributes:
+        df:  Pandas dataframe containing the target and feature variables
+        target_var:  The target variable
+        k_features:  The number of features to return
+        RandomForestClassifier:  A Random Forest classifier using sci-kit learn RandomForestClassifier
         
-    Returns:
-    Pandas Dataframe with the top X variables by RF Importance 
-    """
+        Returns:
+        Pandas Dataframe with the top X variables by RF Importance 
+        """
 
-    cat_features = self.df.loc[:, self.dtypes == object]
+        cat_features = self.df.loc[:, self.dtypes == object]
 
-    if not cat_features.empty:
-        cat_features_transform = pd.get_dummies(cat_features)
+        if not cat_features.empty:
+            self.df = prep_cat_vars(self.df)
 
-        # Append back the numeric variables to get an encoded dataframe
-        numeric_features = self.df._get_numeric_data()
+        X = self.df.drop([target_var], axis=1)
+        y = self.df[target_var]
+        feat_labels = pd.DataFrame(X.columns)
 
-        df_encoded = pd.concat([cat_features_transform, numeric_features], axis = 1)
+        # Run the random forest model
+        forest = RandomForestClassifier.fit(X, y)
 
-    X = df_encoded.drop([target_var], axis=1)
-    y = df_encoded[target_var]
-    feat_labels = pd.DataFrame(X.columns)
+        # Get the rf importance and append the feature variable labels
+        importance = pd.DataFrame(forest.feature_importances_)
+        rf_importance = feat_labels.merge(importance,left_index = True, right_index = True)
+        rf_importance.columns = ['features','rf_importance']
+        rf_importance.sort_values('rf_importance', ascending = False, inplace = True) 
+        rf_importance['rf_rank'] = range(1, len(rf_importance) + 1)
 
-    # Run the random forest model
-    RandomForestClassifier.fit(X, y)
-
-    # Get the rf importance and append the feature variable labels
-    importance = pd.DataFrame(forest.feature_importances_)
-    rf_importance = feat_labels.merge(importance,left_index = True, right_index = True)
-    rf_importance.columns = ['features','rf_importance']
-    rf_importance.sort_values('rf_importance', ascending = False, inplace = True) 
-    rf_importance['rf_rank'] = range(1, len(rf_importance) + 1)
-
-    rf_importance = rf_importance[rf_importance.rf_rank <= k_features]
+        rf_importance = rf_importance[rf_importance.rf_rank <= k_features]
 
     return rf_importance
         
+def abs_reg_coeffs(df, target_var, k_features, linear_model):
+
+    """ Method for calculating the top X variables by the absolute coefficient
         
+        Args:
+        df (Dataframe)
+        target_var (String)
+        k_features (Integer)
+        linear_model (Class)
+    
+        Attributes:
+        df:  Pandas dataframe containing the target and feature variables
+        target_var:  The target variable
+        k_features:  The number of features to return
+        linear_model:  A Linear Model using sci-kit learn linear_model
+        
+        Returns:
+        Pandas Dataframe with the top X variables by absolute coefficient size
+        """
+    
+        cat_features = df.loc[:, df.dtypes == object]
+
+        if not cat_features.empty:
+            df = prep_cat_vars(df)
+
+        X = df.drop([target_var], axis=1)
+        y = df[target_var]
+        feat_labels = pd.DataFrame(X.columns)
+
+        # fit the model
+        lm = linear_model.fit(X, y)
+
+        # get the coefficients and features into a data frame and create the rank
+        lm_coeff = pd.DataFrame(lm.coef_).T
+        feat_labels = pd.DataFrame(X.columns[1:])
+        lm_reg_coeff = feat_labels.merge(lr_coeff,left_index = True, right_index = True)
+        lm_reg_coeff.columns = ['features','coeff']
+        lm_reg_coeff['coeff_abs'] = lm_reg_coeff['coeff'].abs()
+        lm_reg_coeff.sort_values('coeff_abs', ascending = False, inplace = True) 
+        lm_reg_coeff['coeff_rank'] = range(1, len(lm_reg_coeff) + 1)
+
+        lm_reg_coeff = lm_reg_coeff[lm_reg_coeff.coeff_rank <= k_features]
+    
+    return lm_reg_coeff
