@@ -1,6 +1,9 @@
 class VarSelection:
     """ The variable selection class contains a set of methods to support variable selection in classification / regression modeling """
     
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
+    
     def __init__(df, target_var, k_features = 10, random_state = 1):
         
         """ Method for initializing a VarSelection object
@@ -51,3 +54,53 @@ class VarSelection:
         squared_corr = squared_corr.iloc[:self.k_features]
     
         return squared_corr
+    
+    def rf_imp_rank(self, RandomForestClassifier):
+  
+    """ Method for calculating the top X variables with the highest rf importance with the target variable
+        
+    Args:
+    df (Dataframe)
+    target_var (String)
+    k_features (Integer)
+    RandomForestClassifier (Class)
+    
+    Attributes:
+    df:  Pandas dataframe containing the target and feature variables
+    target_var:  The target variable
+    k_features:  The number of features to return
+    RandomForestClassifier:  A Random Forest classifier using sci-kit learn RandomForestClassifier
+        
+    Returns:
+    Pandas Dataframe with the top X variables by RF Importance 
+    """
+
+    cat_features = self.df.loc[:, self.dtypes == object]
+
+    if not cat_features.empty:
+        cat_features_transform = pd.get_dummies(cat_features)
+
+        # Append back the numeric variables to get an encoded dataframe
+        numeric_features = self.df._get_numeric_data()
+
+        df_encoded = pd.concat([cat_features_transform, numeric_features], axis = 1)
+
+    X = df_encoded.drop([target_var], axis=1)
+    y = df_encoded[target_var]
+    feat_labels = pd.DataFrame(X.columns)
+
+    # Run the random forest model
+    RandomForestClassifier.fit(X, y)
+
+    # Get the rf importance and append the feature variable labels
+    importance = pd.DataFrame(forest.feature_importances_)
+    rf_importance = feat_labels.merge(importance,left_index = True, right_index = True)
+    rf_importance.columns = ['features','rf_importance']
+    rf_importance.sort_values('rf_importance', ascending = False, inplace = True) 
+    rf_importance['rf_rank'] = range(1, len(rf_importance) + 1)
+
+    rf_importance = rf_importance[rf_importance.rf_rank <= k_features]
+
+    return rf_importance
+        
+        
