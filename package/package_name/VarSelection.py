@@ -2,7 +2,14 @@ class VarSelection:
     """ The variable selection class contains a set of methods to support variable selection in classification modeling """
     
     import pandas as pd
+    import numpy as np
     from sklearn.ensemble import RandomForestClassifier
+    from sklearn.model_selection import StratifiedKFold
+    from sklearn import linear_model
+    from sklearn.linear_model import LassoCV
+    from sklearn.feature_selection import RFECV
+    from sklearn.metrics import roc_auc_score, roc_curve, auc
+    import matplotlib.pyplot as plt
     
     def __init__(df, target_var, k_features = 10, random_state = 1):
         
@@ -29,17 +36,17 @@ class VarSelection:
         
     def prep_cat_vars(self):
     
-    """ Method for preparing a dataframe that has categorical variables (creates dummies)
-        
-    Args:
-    df (Dataframe)
-    
-    Attributes:
-    df:  Pandas dataframe containing the target and feature variables
-       
-    Returns:
-    Pandas Dataframe with categorical variables one hot encoded
-    """
+        """ Method for preparing a dataframe that has categorical variables (creates dummies)
+
+        Args:
+        df (Dataframe)
+
+        Attributes:
+        df:  Pandas dataframe containing the target and feature variables
+
+        Returns:
+        Pandas Dataframe with categorical variables one hot encoded
+        """
     
     cat_features = self.df.loc[:, self.df.dtypes == object]
 
@@ -57,7 +64,7 @@ class VarSelection:
         return None
     
     def squared_corr(self):
-            """ Method for calculating the top X variables with the highest squared correlation with the target variable
+        """ Method for calculating the top X variables with the highest squared correlation with the target variable
             
         Args:
         df (Dataframe)
@@ -132,7 +139,7 @@ class VarSelection:
         
 def abs_reg_coeffs(df, target_var, k_features, linear_model):
 
-    """ Method for calculating the top X variables by the absolute coefficient
+        """ Method for calculating the top X variables by the absolute coefficient
         
         Args:
         df (Dataframe)
@@ -174,3 +181,61 @@ def abs_reg_coeffs(df, target_var, k_features, linear_model):
         lm_reg_coeff = lm_reg_coeff[lm_reg_coeff.coeff_rank <= k_features]
     
     return lm_reg_coeff
+
+def rfe(self, clf, cv_folds, scoring, var_list = []):
+
+    """ Method for running reccursive feature selection using RFECV from sklearn feature_selection
+        
+    Args:
+    df (Dataframe)
+    target_var (String)
+    clf (Class)
+    cv_folds (Integer)
+    scoring (String)
+    var_list (List)
+    
+    Attributes:
+    df:  Pandas dataframe containing the target and feature variables
+    target_var:  The target variable
+    clf:  An sklearn classifier
+    cv_folds:  The number of CV folds to use
+    scoring:  The method of scoring e.g. 'roc_auc'
+    var_list:  A list of variables on which to run RFECV
+        
+    Returns:
+    Matplot lib chart showing the CV score by number of variables and list containing the variables selected
+    """
+    
+    if len(var_list) != 0:
+        var_list.append(self.target_var)
+        self.df = self.df[var_list]
+    
+    cat_features = self.df.loc[:, self.df.dtypes == object]
+    
+    if not cat_features.empty:
+        self.df = prep_cat_vars(self.df)
+
+    X = self.df.drop([target_var], axis=1)
+    y = self.df[target_var]
+    
+    clf = clf
+    
+    rfecv = RFECV(estimator=clf, 
+                  step=1, 
+                  cv=StratifiedKFold(cv_folds),
+                  scoring=scoring)
+    
+    rfecv.fit(X, y)
+    
+    print("Optimal number of features : %d" % rfecv.n_features_)
+    
+    # Plot number of features VS. cross-validation scores
+    plt.figure()
+    plt.xlabel("Number of features selected")
+    plt.ylabel("Cross validation score (AUC)")
+    plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
+    plt.show()
+    
+    selected_vars = X[X.columns[rfecv.support_]].columns
+    
+    return selected_vars
