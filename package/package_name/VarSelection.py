@@ -1,16 +1,16 @@
-class VarSelection:
-    """ The variable selection class contains a set of methods to support variable selection in classification modeling """
-    
-    import pandas as pd
-    import numpy as np
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.model_selection import StratifiedKFold
-    from sklearn import linear_model
-    from sklearn.linear_model import LassoCV
-    from sklearn.feature_selection import RFECV
-    from sklearn.metrics import roc_auc_score, roc_curve, auc
-    import matplotlib.pyplot as plt
-    
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold
+from sklearn import linear_model
+from sklearn.linear_model import LassoCV
+from sklearn.feature_selection import RFECV
+from sklearn.metrics import roc_auc_score, roc_curve, auc
+import matplotlib.pyplot as plt
+from .SBS import SBS
+
+class VarSelection(SBS):
+    """ The variable selection class contains a set of methods to support variable selection in classification modeling """    
     def __init__(df, target_var, k_features = 10, random_state = 1):
         
         """ Method for initializing a VarSelection object
@@ -239,3 +239,58 @@ def rfe(self, clf, cv_folds, scoring, var_list = []):
     selected_vars = X[X.columns[rfecv.support_]].columns
     
     return selected_vars
+
+def best_subsets(self, clf, subsets, var_list = []):
+
+    """ Method for running best subsets
+        
+    Args:
+    df (Dataframe)
+    target_var (String)
+    clf (Class)
+    subsets (Integer)
+    var_list (List)
+    
+    Attributes:
+    df:  Pandas dataframe containing the target and feature variables
+    target_var:  The target variable
+    clf:  An sklearn classifier
+    subsets:  The number of subsets to run
+    var_list:  A list of variables on which to run best subsets
+        
+    Returns:
+    Matplot lib chart showing the validation score by number of subsets and list containing the variables for
+    the best subset
+    """
+    
+    if len(var_list) != 0:
+        var_list.append(self.target_var)
+        df = df[var_list]
+    
+    cat_features = self.df.loc[:, self.df.dtypes == object]
+    
+    if not cat_features.empty:
+        self.df = prep_cat_vars(self.df)
+
+    X_df = self.df.drop([self.target_var], axis=1) 
+    X = X_df.values
+    y = df[self.target_var].values
+    
+    sbs = SBS(clf, k_features = subsets, random_state = self.random_state)
+    
+    sbs.fit(X, y)
+    
+    scores = sbs.scores_
+    max_score = scores.index(max(scores))
+    subset_cols = list(sbs.subsets_[max_score])
+    best_features = X_df.columns[0:][subset_cols]
+    
+    # Show the plot of the score by all subsets
+    k_feat = [len(k) for k in sbs.subsets_]
+    plt.plot(k_feat, sbs.scores_, marker = 'o')
+    plt.ylabel('Score')
+    plt.xlabel('Number of Features')
+    plt.grid()
+    plt.show()
+    
+    return best_features
