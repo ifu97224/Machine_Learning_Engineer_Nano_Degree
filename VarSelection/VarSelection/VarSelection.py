@@ -10,6 +10,7 @@ from sklearn.cluster import FeatureAgglomeration
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from .SBS import SBS
+from .timing import timing
 
 class variable_selection(SBS):
     """ The variable selection class contains a set of methods to support variable selection in classification modeling """    
@@ -35,7 +36,8 @@ class variable_selection(SBS):
         self.target_var = target_var
         self.k_features = k_features
         self.random_state = random_state
-    
+
+
     def prep_cat_vars(self, df):
     
         """ Method for preparing a dataframe that has categorical variables (creates dummies)
@@ -64,7 +66,8 @@ class variable_selection(SBS):
     
         else:
             return None
-    
+        
+    @timing
     def squared_corr(self):
         """ Method for calculating the top X variables with the highest squared correlation with the target variable
             
@@ -96,6 +99,7 @@ class variable_selection(SBS):
     
         return squared_corr
     
+    @timing
     def rf_imp_rank(self, RandomForestClassifier):
   
         """ Method for calculating the top X variables with the highest rf importance with the target variable
@@ -140,6 +144,7 @@ class variable_selection(SBS):
 
         return rf_importance
     
+    @timing
     def abs_reg_coeffs(self, linear_model):
 
         """ Method for calculating the top X variables by the absolute coefficient
@@ -187,6 +192,7 @@ class variable_selection(SBS):
     
         return lm_reg_coeff
     
+    @timing
     def rfe(self, clf, cv_folds, scoring, var_list = []):
 
         """ Method for running reccursive feature selection using RFECV from sklearn feature_selection
@@ -247,6 +253,7 @@ class variable_selection(SBS):
 
         return selected_vars
     
+    @timing
     def feat_agglom(self, n_clusters, standardize = True):
     
         """ Method for running feature agglomeration
@@ -293,6 +300,7 @@ class variable_selection(SBS):
 
         return var_clust
     
+    @timing
     def best_subsets(self, clf, subsets, var_list = []):
 
         """ Method for running best subsets
