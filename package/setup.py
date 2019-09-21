@@ -1,6 +1,7 @@
-# TODO: Fill out this file with information about your package
+from setuptools import setup
 
-# HINT: Go back to the object-oriented programming lesson "Putting Code on PyPi" and "Exercise: Upload to PyPi"
-
-# HINT: Here is an example of a setup.py file
-# https://packaging.python.org/tutorials/packaging-projects/
+setup(name='VarSelection',
+      version='0.1',
+      description='Package to support variable selection in classifiers',
+      packages=['VarSelection'],
+      zip_safe=False)

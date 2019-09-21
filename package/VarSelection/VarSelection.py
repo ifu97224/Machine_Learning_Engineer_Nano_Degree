@@ -6,6 +6,8 @@ from sklearn import linear_model
 from sklearn.linear_model import LassoCV
 from sklearn.feature_selection import RFECV
 from sklearn.metrics import roc_auc_score, roc_curve, auc
+from sklearn.cluster import FeatureAgglomeration
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from .SBS import SBS
 
@@ -294,3 +296,47 @@ def best_subsets(self, clf, subsets, var_list = []):
     plt.show()
     
     return best_features
+
+def feat_agglom(self, n_clusters, standardize = True):
+    
+    """ Method for running feature agglomeration
+        
+    Args:
+    df (Dataframe)
+    target_var (String)
+    n_clusters (Integer)
+    Standardize (Boolean)
+    
+    Attributes:
+    df:  Pandas dataframe containing the target and feature variables
+    target_var:  The target variable
+    n_clusters:  Number of clusters to return
+        
+    Returns:
+    Pandas dataframe containing the feature name and the cluster number
+    
+    """
+    
+    cat_features = self.df.loc[:, self.df.dtypes == object]
+
+    if not cat_features.empty:
+        df = prep_cat_vars(self.df)
+
+    X = df.drop([self.target_var], axis=1) 
+    X_df = X
+    X = X_df.values
+
+    if standardize == True:
+        scaler = StandardScaler() 
+        X = scaler.fit_transform(X)
+
+    agglo = FeatureAgglomeration(n_clusters=n_clusters)
+    clusters = agglo.fit_transform(X)
+
+    cluster_numbers = pd.DataFrame(agglo.labels_)
+    feat_labels = pd.DataFrame(X_df.columns)
+    var_clust = feat_labels.merge(cluster_numbers, left_index = True, right_index = True)
+    var_clust.columns = ['Feature_Label','Cluster_Number']
+    var_clust.sort_values('Cluster_Number', inplace = True)
+    
+    return var_clust
