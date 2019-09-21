@@ -11,9 +11,9 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from .SBS import SBS
 
-class VarSelection(SBS):
+class variable_selection(SBS):
     """ The variable selection class contains a set of methods to support variable selection in classification modeling """    
-    def __init__(df, target_var, k_features = 10, random_state = 1):
+    def __init__(self, df, target_var, k_features = 10, random_state = 1):
         
         """ Method for initializing a VarSelection object
         
@@ -35,8 +35,8 @@ class VarSelection(SBS):
         self.target_var = target_var
         self.k_features = k_features
         self.random_state = random_state
-        
-    def prep_cat_vars(self):
+    
+    def prep_cat_vars(self, df):
     
         """ Method for preparing a dataframe that has categorical variables (creates dummies)
 
@@ -50,20 +50,20 @@ class VarSelection(SBS):
         Pandas Dataframe with categorical variables one hot encoded
         """
     
-    cat_features = self.df.loc[:, self.df.dtypes == object]
+        cat_features = df.loc[:, df.dtypes == object]
 
-    if not cat_features.empty:
-        cat_features_transform = pd.get_dummies(cat_features)
+        if not cat_features.empty:
+            cat_features_transform = pd.get_dummies(cat_features)
 
-        # Append back the numeric variables to get an encoded dataframe
-        numeric_features = self.df._get_numeric_data()
+            # Append back the numeric variables to get an encoded dataframe
+            numeric_features = df._get_numeric_data()
 
-        df_encoded = pd.concat([cat_features_transform, numeric_features], axis = 1)
+            df_encoded = pd.concat([cat_features_transform, numeric_features], axis = 1)
     
-        return df_encoded
+            return df_encoded
     
-    else:
-        return None
+        else:
+            return None
     
     def squared_corr(self):
         """ Method for calculating the top X variables with the highest squared correlation with the target variable
@@ -115,14 +115,15 @@ class VarSelection(SBS):
         Returns:
         Pandas Dataframe with the top X variables by RF Importance 
         """
+        df = self.df
 
-        cat_features = self.df.loc[:, self.dtypes == object]
+        cat_features = df.loc[:, df.dtypes == object]
 
         if not cat_features.empty:
-            self.df = prep_cat_vars(self.df)
+            df = self.prep_cat_vars(df)
 
-        X = self.df.drop([target_var], axis=1)
-        y = self.df[target_var]
+        X = df.drop([self.target_var], axis=1)
+        y = df[self.target_var]
         feat_labels = pd.DataFrame(X.columns)
 
         # Run the random forest model
@@ -135,11 +136,11 @@ class VarSelection(SBS):
         rf_importance.sort_values('rf_importance', ascending = False, inplace = True) 
         rf_importance['rf_rank'] = range(1, len(rf_importance) + 1)
 
-        rf_importance = rf_importance[rf_importance.rf_rank <= k_features]
+        rf_importance = rf_importance[rf_importance.rf_rank <= self.k_features]
 
-    return rf_importance
-        
-def abs_reg_coeffs(df, target_var, k_features, linear_model):
+        return rf_importance
+    
+    def abs_reg_coeffs(self, linear_model):
 
         """ Method for calculating the top X variables by the absolute coefficient
         
@@ -159,13 +160,15 @@ def abs_reg_coeffs(df, target_var, k_features, linear_model):
         Pandas Dataframe with the top X variables by absolute coefficient size
         """
     
+        df = self.df
+        
         cat_features = df.loc[:, df.dtypes == object]
 
         if not cat_features.empty:
-            df = prep_cat_vars(df)
+            df = self.prep_cat_vars(df)
 
-        X = df.drop([target_var], axis=1)
-        y = df[target_var]
+        X = df.drop([self.target_var], axis=1)
+        y = df[self.target_var]
         feat_labels = pd.DataFrame(X.columns)
 
         # fit the model
@@ -174,169 +177,174 @@ def abs_reg_coeffs(df, target_var, k_features, linear_model):
         # get the coefficients and features into a data frame and create the rank
         lm_coeff = pd.DataFrame(lm.coef_).T
         feat_labels = pd.DataFrame(X.columns[1:])
-        lm_reg_coeff = feat_labels.merge(lr_coeff,left_index = True, right_index = True)
+        lm_reg_coeff = feat_labels.merge(lm_coeff,left_index = True, right_index = True)
         lm_reg_coeff.columns = ['features','coeff']
         lm_reg_coeff['coeff_abs'] = lm_reg_coeff['coeff'].abs()
         lm_reg_coeff.sort_values('coeff_abs', ascending = False, inplace = True) 
         lm_reg_coeff['coeff_rank'] = range(1, len(lm_reg_coeff) + 1)
 
-        lm_reg_coeff = lm_reg_coeff[lm_reg_coeff.coeff_rank <= k_features]
+        lm_reg_coeff = lm_reg_coeff[lm_reg_coeff.coeff_rank <= self.k_features]
     
-    return lm_reg_coeff
+        return lm_reg_coeff
+    
+    def rfe(self, clf, cv_folds, scoring, var_list = []):
 
-def rfe(self, clf, cv_folds, scoring, var_list = []):
+        """ Method for running reccursive feature selection using RFECV from sklearn feature_selection
 
-    """ Method for running reccursive feature selection using RFECV from sklearn feature_selection
+        Args:
+        df (Dataframe)
+        target_var (String)
+        clf (Class)
+        cv_folds (Integer)
+        scoring (String)
+        var_list (List)
+
+        Attributes:
+        df:  Pandas dataframe containing the target and feature variables
+        target_var:  The target variable
+        clf:  An sklearn classifier
+        cv_folds:  The number of CV folds to use
+        scoring:  The method of scoring e.g. 'roc_auc'
+        var_list:  A list of variables on which to run RFECV
+
+        Returns:
+        Matplot lib chart showing the CV score by number of variables and list containing the variables selected
+        """
+
+        df = self.df
+
+        if len(var_list) != 0:
+            var_list.append(self.target_var)
+            df = df[var_list]
+
+        cat_features = df.loc[:, df.dtypes == object]
+
+        if not cat_features.empty:
+            df = self.prep_cat_vars(df)
+
+        X = df.drop([self.target_var], axis=1)
+        y = df[self.target_var]
+
+        clf = clf
+
+        rfecv = RFECV(estimator=clf, 
+                      step=1, 
+                      cv=StratifiedKFold(cv_folds),
+                      scoring=scoring)
+
+        rfecv.fit(X, y)
+
+        print("Optimal number of features : %d" % rfecv.n_features_)
+
+        # Plot number of features VS. cross-validation scores
+        plt.figure()
+        plt.xlabel("Number of features selected")
+        plt.ylabel("Cross validation score (AUC)")
+        plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
+        plt.show()
+
+        selected_vars = X[X.columns[rfecv.support_]].columns
+
+        return selected_vars
+    
+    def feat_agglom(self, n_clusters, standardize = True):
+    
+        """ Method for running feature agglomeration
+
+        Args:
+        df (Dataframe)
+        target_var (String)
+        n_clusters (Integer)
+        Standardize (Boolean)
+
+        Attributes:
+        df:  Pandas dataframe containing the target and feature variables
+        target_var:  The target variable
+        n_clusters:  Number of clusters to return
+
+        Returns:
+        Pandas dataframe containing the feature name and the cluster number
+
+        """
+
+        df = self.df
         
-    Args:
-    df (Dataframe)
-    target_var (String)
-    clf (Class)
-    cv_folds (Integer)
-    scoring (String)
-    var_list (List)
+        cat_features = df.loc[:, df.dtypes == object]
+
+        if not cat_features.empty:
+            df = self.prep_cat_vars(df)
+
+        X = df.drop([self.target_var], axis=1) 
+        X_df = X
+        X = X_df.values
+
+        if standardize == True:
+            scaler = StandardScaler() 
+            X = scaler.fit_transform(X)
+
+        agglo = FeatureAgglomeration(n_clusters=n_clusters)
+        clusters = agglo.fit_transform(X)
+
+        cluster_numbers = pd.DataFrame(agglo.labels_)
+        feat_labels = pd.DataFrame(X_df.columns)
+        var_clust = feat_labels.merge(cluster_numbers, left_index = True, right_index = True)
+        var_clust.columns = ['Feature_Label','Cluster_Number']
+        var_clust.sort_values('Cluster_Number', inplace = True)
+
+        return var_clust
     
-    Attributes:
-    df:  Pandas dataframe containing the target and feature variables
-    target_var:  The target variable
-    clf:  An sklearn classifier
-    cv_folds:  The number of CV folds to use
-    scoring:  The method of scoring e.g. 'roc_auc'
-    var_list:  A list of variables on which to run RFECV
+    def best_subsets(self, clf, subsets, var_list = []):
+
+        """ Method for running best subsets
+
+        Args:
+        df (Dataframe)
+        target_var (String)
+        clf (Class)
+        subsets (Integer)
+        var_list (List)
+
+        Attributes:
+        df:  Pandas dataframe containing the target and feature variables
+        target_var:  The target variable
+        clf:  An sklearn classifier
+        subsets:  The number of subsets to run
+        var_list:  A list of variables on which to run best subsets
+
+        Returns:
+        Matplot lib chart showing the validation score by number of subsets and list containing the variables for
+        the best subset
+        """
+        df = self.df
         
-    Returns:
-    Matplot lib chart showing the CV score by number of variables and list containing the variables selected
-    """
-    
-    if len(var_list) != 0:
-        var_list.append(self.target_var)
-        self.df = self.df[var_list]
-    
-    cat_features = self.df.loc[:, self.df.dtypes == object]
-    
-    if not cat_features.empty:
-        self.df = prep_cat_vars(self.df)
+        if len(var_list) != 0:
+            var_list.append(self.target_var)
+            df = df[var_list]
 
-    X = self.df.drop([target_var], axis=1)
-    y = self.df[target_var]
-    
-    clf = clf
-    
-    rfecv = RFECV(estimator=clf, 
-                  step=1, 
-                  cv=StratifiedKFold(cv_folds),
-                  scoring=scoring)
-    
-    rfecv.fit(X, y)
-    
-    print("Optimal number of features : %d" % rfecv.n_features_)
-    
-    # Plot number of features VS. cross-validation scores
-    plt.figure()
-    plt.xlabel("Number of features selected")
-    plt.ylabel("Cross validation score (AUC)")
-    plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
-    plt.show()
-    
-    selected_vars = X[X.columns[rfecv.support_]].columns
-    
-    return selected_vars
+        cat_features = df.loc[:, df.dtypes == object]
 
-def best_subsets(self, clf, subsets, var_list = []):
+        if not cat_features.empty:
+            df = self.prep_cat_vars(df)
 
-    """ Method for running best subsets
-        
-    Args:
-    df (Dataframe)
-    target_var (String)
-    clf (Class)
-    subsets (Integer)
-    var_list (List)
-    
-    Attributes:
-    df:  Pandas dataframe containing the target and feature variables
-    target_var:  The target variable
-    clf:  An sklearn classifier
-    subsets:  The number of subsets to run
-    var_list:  A list of variables on which to run best subsets
-        
-    Returns:
-    Matplot lib chart showing the validation score by number of subsets and list containing the variables for
-    the best subset
-    """
-    
-    if len(var_list) != 0:
-        var_list.append(self.target_var)
-        df = df[var_list]
-    
-    cat_features = self.df.loc[:, self.df.dtypes == object]
-    
-    if not cat_features.empty:
-        self.df = prep_cat_vars(self.df)
+        X_df = df.drop([self.target_var], axis=1) 
+        X = X_df.values
+        y = df[self.target_var].values
 
-    X_df = self.df.drop([self.target_var], axis=1) 
-    X = X_df.values
-    y = df[self.target_var].values
-    
-    sbs = SBS(clf, k_features = subsets, random_state = self.random_state)
-    
-    sbs.fit(X, y)
-    
-    scores = sbs.scores_
-    max_score = scores.index(max(scores))
-    subset_cols = list(sbs.subsets_[max_score])
-    best_features = X_df.columns[0:][subset_cols]
-    
-    # Show the plot of the score by all subsets
-    k_feat = [len(k) for k in sbs.subsets_]
-    plt.plot(k_feat, sbs.scores_, marker = 'o')
-    plt.ylabel('Score')
-    plt.xlabel('Number of Features')
-    plt.grid()
-    plt.show()
-    
-    return best_features
+        sbs = SBS(clf, k_features = subsets, random_state = self.random_state)
 
-def feat_agglom(self, n_clusters, standardize = True):
-    
-    """ Method for running feature agglomeration
-        
-    Args:
-    df (Dataframe)
-    target_var (String)
-    n_clusters (Integer)
-    Standardize (Boolean)
-    
-    Attributes:
-    df:  Pandas dataframe containing the target and feature variables
-    target_var:  The target variable
-    n_clusters:  Number of clusters to return
-        
-    Returns:
-    Pandas dataframe containing the feature name and the cluster number
-    
-    """
-    
-    cat_features = self.df.loc[:, self.df.dtypes == object]
+        sbs.fit(X, y)
 
-    if not cat_features.empty:
-        df = prep_cat_vars(self.df)
+        scores = sbs.scores_
+        max_score = scores.index(max(scores))
+        subset_cols = list(sbs.subsets_[max_score])
+        best_features = X_df.columns[0:][subset_cols]
 
-    X = df.drop([self.target_var], axis=1) 
-    X_df = X
-    X = X_df.values
+        # Show the plot of the score by all subsets
+        k_feat = [len(k) for k in sbs.subsets_]
+        plt.plot(k_feat, sbs.scores_, marker = 'o')
+        plt.ylabel('Score')
+        plt.xlabel('Number of Features')
+        plt.grid()
+        plt.show()
 
-    if standardize == True:
-        scaler = StandardScaler() 
-        X = scaler.fit_transform(X)
-
-    agglo = FeatureAgglomeration(n_clusters=n_clusters)
-    clusters = agglo.fit_transform(X)
-
-    cluster_numbers = pd.DataFrame(agglo.labels_)
-    feat_labels = pd.DataFrame(X_df.columns)
-    var_clust = feat_labels.merge(cluster_numbers, left_index = True, right_index = True)
-    var_clust.columns = ['Feature_Label','Cluster_Number']
-    var_clust.sort_values('Cluster_Number', inplace = True)
-    
-    return var_clust
+        return best_features
