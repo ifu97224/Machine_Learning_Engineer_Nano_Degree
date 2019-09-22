@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from .SBS import SBS
 from .timing import timing
 
-class variable_selection(SBS):
+class variable_selection():
     """ The variable selection class contains a set of methods to support variable selection in classification modeling """    
     def __init__(self, df, target_var, k_features = 10, random_state = 1):
         
